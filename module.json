@@ -1,0 +1,11 @@
+{
+    "name": "Watchlist",
+    "alias": "watchlist",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Watchlist\\Providers\\WatchlistServiceProvider"
+    ],
+    "files": []
+}
