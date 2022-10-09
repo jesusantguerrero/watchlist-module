@@ -4,6 +4,7 @@ namespace Modules\Watchlist\Http\Controllers;
 
 use Freesgen\Atmosphere\Http\InertiaController;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Modules\Watchlist\Models\Watchlist;
 
 class WatchlistController extends InertiaController {
@@ -13,7 +14,8 @@ class WatchlistController extends InertiaController {
     {
         $this->model = $watchlist;
         $this->templates = [
-            'index' => 'Finance/Watchlist'
+            'index' => 'Finance/Watchlist',
+            'show' => 'Finance/WatchlistShow'
         ];
         $this->searchable = ["id", "name"];
         $this->sorts = ['name'];
@@ -28,12 +30,22 @@ class WatchlistController extends InertiaController {
         [$startDate, $endDate] = $this->getFilterDates($filters);
 
         return [
-            "data" => array_map(function($item) use ($teamId, $startDate, $endDate) {
+            "data" => array_map(function($item) use ($startDate, $endDate) {
                 return array_merge($item, [
-                    "data" => Watchlist::getData($teamId, $item, $startDate, $endDate)
+                    "data" => Watchlist::getData((object) $item, $startDate, $endDate)
                 ]);
             }, $watchlist->toArray())
         ];
+    }
+
+    public function show(Watchlist $watchlist) {
+        $filters = isset($queryParams['filter']) ? $queryParams['filter'] : [];
+        [$startDate, $endDate] = $this->getFilterDates($filters);
+
+        $resource = array_merge($watchlist->toArray(), Watchlist::getData($watchlist, $startDate, $endDate));
+        return Inertia::render($this->templates['show'], [
+            "resource" => $resource
+        ]);
     }
 }
 
