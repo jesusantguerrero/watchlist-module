@@ -29,11 +29,11 @@ class Watchlist extends Model
 
     public static function getData($listData, $startDate = null, $endDate = null)
     {
-        $endDate = Carbon::now()->endOfMonth()->format('Y-m-d');
-        $startDate = Carbon::now()->startOfMonth()->format('Y-m-d');
+        $startDateCarbon = Carbon::createFromFormat('Y-m-d', $startDate);
+        $endDateCarbon = Carbon::createFromFormat('Y-m-d', $endDate)->endOfMonth();
 
-        $prevStartDate = Carbon::now()->subMonth(1)->startOfMonth()->format('Y-m-d');
-        $prevEndDate = Carbon::now()->subMonth(1)->endOfMonth()->format('Y-m-d');
+        $prevStartDate = $startDateCarbon->subMonth(1)->startOfMonth()->format('Y-m-d');
+        $prevEndDate = $endDateCarbon->subMonth(1)->endOfMonth()->format('Y-m-d');
 
         return [
             'month' => self::expensesInRange($listData->team_id, $startDate, $endDate, $listData),

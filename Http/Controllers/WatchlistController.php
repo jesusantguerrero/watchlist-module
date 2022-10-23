@@ -24,7 +24,6 @@ class WatchlistController extends InertiaController {
     }
 
     public function getIndexProps(Request $request, $watchlist): array {
-        $teamId = $request->user()->current_team_id;
         $queryParams = $request->query();
         $filters = isset($queryParams['filter']) ? $queryParams['filter'] : [];
         [$startDate, $endDate] = $this->getFilterDates($filters);
