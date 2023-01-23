@@ -23,10 +23,12 @@ class WatchlistController extends InertiaController {
         $this->appends = [];
     }
 
-    public function getIndexProps(Request $request, $watchlist): array {
+    public function getIndexProps(Request $request, $watchlist = null): array {
         $queryParams = $request->query();
         $filters = isset($queryParams['filter']) ? $queryParams['filter'] : [];
         [$startDate, $endDate] = $this->getFilterDates($filters);
+
+        if (!$watchlist) return [];
 
         return [
             "data" => array_map(function($item) use ($startDate, $endDate) {
