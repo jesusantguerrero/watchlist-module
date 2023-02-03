@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use Modules\Watchlist\Http\Controllers\Api\WatchlistApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,4 +16,8 @@ use Illuminate\Http\Request;
 
 Route::middleware('auth:api')->get('/watchlist', function (Request $request) {
     return $request->user();
+});
+
+Route::middleware('auth:api')->group(function() {
+    Route::get('/watchlist', [WatchlistApiController::class, 'index']);
 });
