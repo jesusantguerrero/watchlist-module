@@ -13,6 +13,6 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('finance')->group(function() {
+Route::middleware(['auth:sanctum', 'atmosphere.teamed', 'verified'])->prefix('finance')->group(function() {
     Route::resource('/watchlist', 'WatchlistController');
 });

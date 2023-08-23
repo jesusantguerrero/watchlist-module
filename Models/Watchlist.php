@@ -42,13 +42,13 @@ class Watchlist extends Model
         ];
     }
 
-    public static function getFullData($listData, $startDate = null, $endDate = null)
+    public static function getFullData($listData, $startDate = null, $endDate = null, $sub = 1)
     {
         $startDateCarbon = Carbon::createFromFormat('Y-m-d', $startDate);
         $endDateCarbon = Carbon::createFromFormat('Y-m-d', $endDate)->endOfMonth();
 
-        $prevStartDate = $startDateCarbon->subMonth(1)->startOfMonth()->format('Y-m-d');
-        $prevEndDate = $endDateCarbon->subMonth(1)->endOfMonth()->format('Y-m-d');
+        $prevStartDate = $startDateCarbon->subMonth($sub)->startOfMonth()->format('Y-m-d');
+        $prevEndDate = $endDateCarbon->subMonth($sub)->endOfMonth()->format('Y-m-d');
 
         return [
             'month' => self::expensesInRange($listData->team_id, $startDate, $endDate, $listData),

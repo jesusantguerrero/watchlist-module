@@ -44,7 +44,7 @@ class WatchlistController extends InertiaController {
         $filters = isset($queryParams['filter']) ? $queryParams['filter'] : [];
         [$startDate, $endDate] = $this->getFilterDates($filters);
 
-        $resource = array_merge($watchlist->toArray(), Watchlist::getFullData($watchlist, $startDate, $endDate));
+        $resource = array_merge($watchlist->toArray(), Watchlist::getFullData($watchlist, $startDate, $endDate, 2));
         return Inertia::render($this->templates['show'], [
             "resource" => $resource
         ]);
