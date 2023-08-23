@@ -12,7 +12,12 @@
 */
 
 use Illuminate\Support\Facades\Route;
+use Modules\Watchlist\Http\Controllers\Api\WatchlistApiController;
 
 Route::middleware(['auth:sanctum', 'atmosphere.teamed', 'verified'])->prefix('finance')->group(function() {
     Route::resource('/watchlist', 'WatchlistController');
+});
+
+Route::middleware(['auth:sanctum', 'atmosphere.teamed', 'verified'])->prefix('api')->group(function() {
+    Route::get('/finance/watchlist', [WatchlistApiController::class, 'index']);
 });
