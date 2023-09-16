@@ -1,10 +1,10 @@
 {
-    "name": "nwidart/watchlist",
-    "description": "",
+    "name": "insane/watchlist-module",
+    "description": "Watchlist module for loger",
     "authors": [
         {
-            "name": "Nicolas Widart",
-            "email": "n.widart@gmail.com"
+            "name": "Jesus Guerrero",
+            "email": "jesusantguerrero@gmail.com"
         }
     ],
     "extra": {
@@ -19,5 +19,6 @@
         "psr-4": {
             "Modules\\Watchlist\\": ""
         }
-    }
+    },
+    "type": "laravel-module"
 }
