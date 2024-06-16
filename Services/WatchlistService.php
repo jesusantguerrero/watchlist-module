@@ -11,7 +11,7 @@ use App\Domains\Transaction\Models\TransactionLine;
 class WatchlistService
 {
 
-    public static function getData($listData, $startDate = null, $endDate = null)
+    public  function getData($listData, $startDate = null, $endDate = null)
     {
         $startDateCarbon = Carbon::createFromFormat('Y-m-d', $startDate);
         $endDateCarbon = Carbon::createFromFormat('Y-m-d', $endDate)->endOfMonth();
@@ -25,7 +25,7 @@ class WatchlistService
         ];
     }
 
-    public static function getFullData($listData, $startDate = null, $endDate = null, $sub = 1)
+    public function getFullData($listData, $startDate = null, $endDate = null, $sub = 1)
     {
         $startDateCarbon = Carbon::createFromFormat('Y-m-d', $startDate);
         $endDateCarbon = Carbon::createFromFormat('Y-m-d', $endDate)->endOfMonth();
@@ -34,9 +34,9 @@ class WatchlistService
         $prevEndDate = $endDateCarbon->subMonth($sub)->endOfMonth()->format('Y-m-d');
 
         return [
-            'month' => self::expensesInRange($listData->team_id, $startDate, $endDate, $listData),
-            'prevMonth' => self::expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
-            'transactions' => $listData->transactionsByCategories($prevStartDate, $endDate)
+            'month' => $this->expensesInRange($listData->team_id, $startDate, $endDate, $listData),
+            'prevMonth' => $this->expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
+            'transactions' => $this->transactionsByCategories($listData, $prevStartDate, $endDate),
         ];
     }
 
@@ -54,7 +54,7 @@ class WatchlistService
         ];
     }
 
-    public static function expensesInRange($teamId, $startDate, $endDate, $listData)
+    public function expensesInRange($teamId, $startDate, $endDate, $listData)
     {
         $filterType = $listData->type;
 
@@ -85,21 +85,29 @@ class WatchlistService
         ->byTeam($watchlist->team_id)
         ->inDateFrame($startDate, $endDate)
         ->verified()
-        ->with(['transaction'])
-        // ->balance()
+        ->with(['transaction',  'payee',
+        'category',
+        'accountFrom',
+        'accountTo',
+        'labels'])
+        ->balance()
         ->$filterType($watchlist->input)
-        // ->selectRaw('date_format(transaction_lines.date, "%Y-%m-01") as month_date, categories.name, categories.id')
-        // ->groupByRaw('date_format(transaction_lines.date, "%Y-%m"), categories.id')
-        ->orderBy('transactions.date')
+        ->selectRaw("
+            date_format(transaction_lines.date,
+            '%Y-%m-01') as date,
+            date_format(transaction_lines.date, '%Y-%m-01') as month,
+            year(transaction_lines.date) as year,
+            categories.name,
+            categories.id, transaction_lines.*"
+        )
+        ->groupByRaw('date_format(transaction_lines.date, "%Y-%m"), categories.id')
+        ->orderBy('date')
         ->get();
 
-
-        dd($result);
-
-        $resultGroup = $result->groupBy('month_date')->reverse();
+        $resultGroup = $result->groupBy('month')->reverse();
         return $resultGroup->map(function ($monthItems) {
             return [
-                'date' => $monthItems->first()->month_date,
+                'date' => $monthItems->first()->month,
                 'data' => $monthItems->sortByDesc('total_amount')->values(),
                 'total' => $monthItems->sum(function ($transaction){
                     return $transaction->total_amount;
