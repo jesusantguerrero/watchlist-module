@@ -2,15 +2,15 @@
 
 namespace Modules\Watchlist\Http\Controllers;
 
-use Freesgen\Atmosphere\Http\InertiaController;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Modules\Watchlist\Models\Watchlist;
+use Freesgen\Atmosphere\Http\InertiaController;
+use Modules\Watchlist\Services\WatchlistService;
 
 class WatchlistController extends InertiaController {
     const DateFormat = 'Y-m-d';
 
-    public function __construct(Watchlist $watchlist)
+    public function __construct(Watchlist $watchlist, private WatchlistService $watchlistService)
     {
         $this->model = $watchlist;
         $this->templates = [
@@ -31,11 +31,7 @@ class WatchlistController extends InertiaController {
         if (!$watchlist) return [];
 
         return [
-            "data" => array_map(function($item) use ($startDate, $endDate) {
-                return array_merge($item, [
-                    "data" => Watchlist::getData((object) $item, $startDate, $endDate)
-                ]);
-            }, $watchlist->toArray())
+            "data" => $this->watchlistService->list(auth()->user()->current_team_id, $startDate, $endDate, $watchlist)
         ];
     }
 
@@ -44,9 +40,13 @@ class WatchlistController extends InertiaController {
         $filters = isset($queryParams['filter']) ? $queryParams['filter'] : [];
         [$startDate, $endDate] = $this->getFilterDates($filters);
 
-        $resource = array_merge($watchlist->toArray(), Watchlist::getFullData($watchlist, $startDate, $endDate, 2));
-        return Inertia::render($this->templates['show'], [
-            "resource" => $resource
+
+
+        $resource = array_merge($watchlist->toArray(), $this->watchlistService->getFullData($watchlist, $startDate, $endDate, 2));
+
+        return inertia($this->templates['show'], [
+            "resource" => $resource,
+            "watchlist" => $this->watchlistService->list(auth()->user()->current_team_id, $startDate, $endDate)
         ]);
     }
 }
