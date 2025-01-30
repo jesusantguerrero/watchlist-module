@@ -116,7 +116,7 @@ class WatchlistService
         }, $resultGroup);
     }
 
-    public function list($teamId, $startDate, $endDate, Watchlist $watchlist = null) {
+    public function list($teamId, $startDate, $endDate, Illuminate\Database\Eloquent\Collection $watchlist = null) {
         $teamWatchlist =  $watchlist ?? Watchlist::where('team_id', $teamId)->get();
         return array_map(function($item) use ($startDate, $endDate) {
             return array_merge($item, [
