@@ -15,7 +15,7 @@ class Watchlist extends Model
     public const TYPE_PAYEE = 'payees';
     public const TYPE_CATEGORY = 'categories';
     public const TYPE_CATEGORY_GROUP = 'groups';
-    public const TYPE_LABELS = 'labels';
+    public const TYPE_TAGS = 'tags';
 
     protected $fillable = ['team_id', 'user_id', 'name', 'input', 'type', 'target'];
 
@@ -26,6 +26,7 @@ class Watchlist extends Model
     */
     protected $casts = [
         'input' => 'array',
+        'target' => 'decimal:2',
     ];
 
     public static function getData($listData, $startDate = null, $endDate = null)
@@ -121,7 +122,4 @@ class Watchlist extends Model
         }, $resultGroup);
     }
 
-    public function projected()
-    {
-    }
 }
