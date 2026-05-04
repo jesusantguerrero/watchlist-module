@@ -38,8 +38,8 @@ class Watchlist extends Model
         $prevEndDate = $endDateCarbon->subMonth(1)->endOfMonth()->format('Y-m-d');
 
         return [
-            'month' => self::expensesInRange($listData->team_id, $startDate, $endDate, $listData),
-            'prevMonth' => self::expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData)
+            'month' => self::monthDataWithProjection($listData->team_id, $startDate, $endDate, $listData),
+            'prevMonth' => self::expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
         ];
     }
 
@@ -52,23 +52,79 @@ class Watchlist extends Model
         $prevEndDate = $endDateCarbon->subMonth($sub)->endOfMonth()->format('Y-m-d');
 
         return [
-            'month' => self::expensesInRange($listData->team_id, $startDate, $endDate, $listData),
+            'month' => self::monthDataWithProjection($listData->team_id, $startDate, $endDate, $listData),
             'prevMonth' => self::expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
-            'transactions' => $listData->transactionsByCategories($prevStartDate, $endDate)
+            'transactions' => $listData->transactionsByCategories($prevStartDate, $endDate),
         ];
     }
 
-     public function fullData($startDate = null, $endDate = null, $sub = 1)
+    public function fullData($startDate = null, $endDate = null, $sub = 1)
     {
         $startDateCarbon = now()->startOfMonth();
-        $endDateCarbon = Carbon::createFromFormat('Y-m-d', $endDate ??  date('Y-m-d'))->endOfMonth();
+        $endDateCarbon = Carbon::createFromFormat('Y-m-d', $endDate ?? date('Y-m-d'))->endOfMonth();
 
         $prevStartDate = $startDateCarbon->copy()->subMonth($sub)->startOfMonth()->format('Y-m-d');
         $prevEndDate = $startDateCarbon->copy()->subRealDay($sub)->endOfMonth()->format('Y-m-d');
 
         return [
-            'month' => self::expensesInRange($this->team_id, $startDateCarbon->format('Y-m-d'), $endDateCarbon->format('Y-m-d'), $this),
+            'month' => self::monthDataWithProjection($this->team_id, $startDateCarbon->format('Y-m-d'), $endDateCarbon->format('Y-m-d'), $this),
             'prevMonth' => self::expensesInRange($this->team_id, $prevStartDate, $prevEndDate, $this),
+        ];
+    }
+
+    /**
+     * Wrap expensesInRange() with end-of-period projection.
+     *
+     * Returns the same fields as expensesInRange (total, currency_code, transactionsCount,
+     * lastTransactionDate) plus projection metadata: projected, days_elapsed, days_in_period,
+     * is_current_period.
+     *
+     * Projection is linear: total * (days_in_period / days_elapsed). Only computed when "now"
+     * falls inside the period; otherwise projected == total.
+     */
+    public static function monthDataWithProjection($teamId, string $startDate, string $endDate, $listData): array
+    {
+        $expenses = self::expensesInRange($teamId, $startDate, $endDate, $listData);
+
+        $base = $expenses ? $expenses->toArray() : [
+            'total' => 0,
+            'currency_code' => null,
+            'transactionsCount' => 0,
+            'lastTransactionDate' => null,
+        ];
+
+        return array_merge($base, self::projectedTotal((float) ($base['total'] ?? 0), $startDate, $endDate));
+    }
+
+    /**
+     * Project the period total using a linear extrapolation from elapsed days.
+     *
+     * @return array{projected: float, days_elapsed: ?int, days_in_period: ?int, is_current_period: bool}
+     */
+    public static function projectedTotal(float $total, string $startDate, string $endDate, ?Carbon $now = null): array
+    {
+        $now = $now ?? now();
+        $start = Carbon::parse($startDate)->startOfDay();
+        $end = Carbon::parse($endDate)->endOfMonth();
+
+        if ($now->lt($start) || $now->gt($end)) {
+            return [
+                'projected' => round($total, 2),
+                'days_elapsed' => null,
+                'days_in_period' => null,
+                'is_current_period' => false,
+            ];
+        }
+
+        $daysElapsed = $start->diffInDays($now) + 1;
+        $daysInPeriod = $start->diffInDays($end) + 1;
+        $projected = $daysElapsed > 0 ? $total * ($daysInPeriod / $daysElapsed) : $total;
+
+        return [
+            'projected' => round($projected, 2),
+            'days_elapsed' => $daysElapsed,
+            'days_in_period' => $daysInPeriod,
+            'is_current_period' => true,
         ];
     }
 

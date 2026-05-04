@@ -34,7 +34,7 @@ class WatchlistService
         $prevEndDate = $endDateCarbon->subMonth($sub)->endOfMonth()->format('Y-m-d');
 
         return [
-            'month' => $this->expensesInRange($listData->team_id, $startDate, $endDate, $listData),
+            'month' => Watchlist::monthDataWithProjection($listData->team_id, $startDate, $endDate, $listData),
             'prevMonth' => $this->expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
             'transactions' => $this->transactionsByCategories($listData, $prevStartDate, $endDate),
         ];
