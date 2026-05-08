@@ -2,6 +2,7 @@
 
 namespace Modules\Watchlist\Services;
 
+use App\Domains\Budget\Models\BudgetTarget;
 use App\Domains\Transaction\Models\Transaction;
 use App\Domains\Transaction\Models\TransactionLine;
 use Illuminate\Database\Eloquent\Collection;
@@ -37,6 +38,7 @@ class WatchlistService
             'month' => Watchlist::monthDataWithProjection($listData->team_id, $startDate, $endDate, $listData),
             'prevMonth' => $this->expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
             'transactions' => $this->transactionsByCategories($listData, $prevStartDate, $endDate),
+            'monthlySeries' => Watchlist::monthlySeries(12, $listData->team_id, $listData, $endDate),
         ];
     }
 
@@ -56,26 +58,14 @@ class WatchlistService
 
     public function expensesInRange($teamId, $startDate, $endDate, $listData)
     {
-        $filterType = $listData->type;
-
-        return Transaction::byTeam($teamId)
-            ->verified()
-            ->expenses()
-            ->inDateFrame($startDate, $endDate)
-            ->select(DB::raw('SUM(total) as total, currency_code, count(id) as transactionsCount, max(date) as lastTransactionDate'))
-            ->$filterType($listData->input)
-            ->first();
+        // Delegate to the model so the direction filter (outflow|inflow|both) is honored
+        // in one place. Keeping this wrapper for backward compatibility with existing callers.
+        return Watchlist::expensesInRange($teamId, $startDate, $endDate, $listData);
     }
 
     public function transactions(Watchlist $watchlist, $startDate, $endDate)
     {
-        $filterType = $watchlist->type;
-
-        return Transaction::byTeam($watchlist->teamId)
-            ->verified()
-            ->expenses()
-            ->inDateFrame($startDate, $endDate)
-            ->$filterType($watchlist->input);
+        return $watchlist->transactions($startDate, $endDate);
     }
 
     public function transactionsByCategories(Watchlist $watchlist, $startDate, $endDate)
@@ -121,9 +111,21 @@ class WatchlistService
     {
         $teamWatchlist = $watchlist ?? Watchlist::where('team_id', $teamId)->get();
 
-        return array_map(function ($item) use ($startDate, $endDate) {
+        // Hydrate streak counts in one query so the WatchlistCard can render the
+        // "🔥 N month streak" chip without N+1 lookups (WL-7 challenge UX).
+        $watchlistIds = $teamWatchlist->pluck('id')->all();
+        $challengeTargets = BudgetTarget::query()
+            ->whereIn('watchlist_id', $watchlistIds)
+            ->where('target_type', BudgetTarget::TYPE_CHALLENGE_UNDER_AMOUNT)
+            ->get()
+            ->keyBy('watchlist_id');
+
+        return array_map(function ($item) use ($startDate, $endDate, $challengeTargets) {
+            $target = $challengeTargets->get($item['id'] ?? null);
+
             return array_merge($item, [
                 'data' => Watchlist::getData((object) $item, $startDate, $endDate),
+                'streak_months' => $target ? $target->streakInMonths() : 0,
             ]);
         }, $teamWatchlist->toArray());
     }

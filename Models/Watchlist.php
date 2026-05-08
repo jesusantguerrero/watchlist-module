@@ -4,10 +4,11 @@ namespace Modules\Watchlist\Models;
 
 use App\Domains\Transaction\Models\Transaction;
 use App\Domains\Transaction\Models\TransactionLine;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class Watchlist extends Model
 {
@@ -17,7 +18,31 @@ class Watchlist extends Model
     public const TYPE_CATEGORY_GROUP = 'groups';
     public const TYPE_TAGS = 'tags';
 
-    protected $fillable = ['team_id', 'user_id', 'name', 'input', 'type', 'target'];
+    public const DIRECTION_OUTFLOW = 'outflow';
+    public const DIRECTION_INFLOW = 'inflow';
+    public const DIRECTION_BOTH = 'both';
+
+    protected $fillable = ['team_id', 'user_id', 'name', 'input', 'type', 'target', 'direction', 'share_token'];
+
+    /**
+     * Generate (or reuse) a 32-char random URL slug. Idempotent: calling twice returns
+     * the same token. Used by the public read-only share view (WL-MARKETING).
+     */
+    public function ensureShareToken(): string
+    {
+        if (! $this->share_token) {
+            $this->share_token = Str::random(32);
+            $this->save();
+        }
+
+        return $this->share_token;
+    }
+
+    public function revokeShareToken(): void
+    {
+        $this->share_token = null;
+        $this->save();
+    }
 
     /**
     * The attributes that should be cast to native types.
@@ -55,6 +80,7 @@ class Watchlist extends Model
             'month' => self::monthDataWithProjection($listData->team_id, $startDate, $endDate, $listData),
             'prevMonth' => self::expensesInRange($listData->team_id, $prevStartDate, $prevEndDate, $listData),
             'transactions' => $listData->transactionsByCategories($prevStartDate, $endDate),
+            'monthlySeries' => self::monthlySeries(12, $listData->team_id, $listData, $endDate),
         ];
     }
 
@@ -128,28 +154,92 @@ class Watchlist extends Model
         ];
     }
 
+    /**
+     * Apply the watchlist's direction filter onto a Transaction query.
+     * - outflow: only WITHDRAW (expenses, current default for back-compat)
+     * - inflow:  only DEPOSIT (income — freelance, refunds, transfers in)
+     * - both:    no direction filter (e.g. net flow on a category)
+     */
+    private static function applyDirection($query, $listData)
+    {
+        $direction = $listData->direction ?? self::DIRECTION_OUTFLOW;
+        if ($direction === self::DIRECTION_OUTFLOW) {
+            return $query->expenses();
+        }
+        if ($direction === self::DIRECTION_INFLOW) {
+            return $query->where('transactions.direction', Transaction::DIRECTION_DEBIT)
+                ->whereNotNull('category_id');
+        }
+
+        // both
+        return $query->whereNotNull('category_id');
+    }
+
     public static function expensesInRange($teamId, $startDate, $endDate, $listData)
     {
         $filterType = $listData->type;
 
-        return Transaction::byTeam($teamId)
-        ->verified()
-        ->expenses()
-        ->inDateFrame($startDate, $endDate)
-        ->select(DB::raw('SUM(total) as total, currency_code, count(id) as transactionsCount, max(date) as lastTransactionDate'))
-        ->$filterType($listData->input)
-        ->first();
+        $query = Transaction::byTeam($teamId)
+            ->verified()
+            ->inDateFrame($startDate, $endDate);
+
+        return self::applyDirection($query, $listData)
+            ->select(DB::raw('SUM(total) as total, currency_code, count(id) as transactionsCount, max(date) as lastTransactionDate'))
+            ->$filterType($listData->input)
+            ->first();
+    }
+
+    /**
+     * Return $months consecutive monthly totals ending at $endDate, oldest first.
+     *
+     * Months without matching transactions are filled with total = 0 so the series
+     * is always exactly $months long. Used by the timeline chart in WatchlistShow.
+     *
+     * @return array<int, array{month: string, total: float}>
+     */
+    public static function monthlySeries(int $months, $teamId, $listData, string $endDate): array
+    {
+        $endCarbon = Carbon::parse($endDate)->endOfMonth();
+        // startOfMonth() before subMonths() avoids Carbon's day-overflow when endDate is the 31st.
+        $startCarbon = $endCarbon->copy()->startOfMonth()->subMonths($months - 1);
+
+        $filterType = $listData->type;
+
+        $query = Transaction::byTeam($teamId)
+            ->verified()
+            ->inDateFrame($startCarbon->format('Y-m-d'), $endCarbon->format('Y-m-d'));
+
+        $totals = self::applyDirection($query, $listData)
+            ->$filterType($listData->input)
+            ->select(DB::raw("date_format(date, '%Y-%m-01') as month_key"), DB::raw('SUM(total) as total'))
+            ->groupBy(DB::raw("date_format(date, '%Y-%m-01')"))
+            ->pluck('total', 'month_key')
+            ->all();
+
+        $series = [];
+        $cursor = $startCarbon->copy();
+        for ($i = 0; $i < $months; $i++) {
+            $key = $cursor->format('Y-m-01');
+            $series[] = [
+                'month' => $key,
+                'total' => (float) ($totals[$key] ?? 0),
+            ];
+            $cursor->addMonth();
+        }
+
+        return $series;
     }
 
     public  function transactions( $startDate, $endDate)
     {
         $filterType = $this->type;
 
-        return Transaction::byTeam($this->teamId)
-        ->verified()
-        ->expenses()
-        ->inDateFrame($startDate, $endDate)
-        ->$filterType($this->input);
+        $query = Transaction::byTeam($this->teamId)
+            ->verified()
+            ->inDateFrame($startDate, $endDate);
+
+        return self::applyDirection($query, $this)
+            ->$filterType($this->input);
     }
 
     public  function transactionsByCategories($startDate, $endDate)
