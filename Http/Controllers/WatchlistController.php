@@ -36,6 +36,8 @@ class WatchlistController extends InertiaController {
     }
 
     public function show(Watchlist $watchlist) {
+        abort_unless((int) $watchlist->team_id === (int) request()->user()->current_team_id, 404);
+
         $queryParams = request()->query();
         $filters = isset($queryParams['filter']) ? $queryParams['filter'] : [];
         [$startDate, $endDate] = $this->getFilterDates($filters);
