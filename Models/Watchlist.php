@@ -142,8 +142,8 @@ class Watchlist extends Model
             ];
         }
 
-        $daysElapsed = (int) $start->diffInDays($now, true) + 1;
-        $daysInPeriod = (int) $start->diffInDays($end, true) + 1;
+        $daysElapsed = $start->diffInDays($now) + 1;
+        $daysInPeriod = $start->diffInDays($end) + 1;
         $projected = $daysElapsed > 0 ? $total * ($daysInPeriod / $daysElapsed) : $total;
 
         return [
